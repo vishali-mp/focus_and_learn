@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Focus & Learn</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;1,9..144,300&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0e0e0f;
+      --surface: #1a1a1c;
+      --surface2: #242427;
+      --border: rgba(255,255,255,0.08);
+      --text: #f0ede8;
+      --muted: #7a7875;
+      --accent: #c8f53d;
+      --accent-dim: rgba(200,245,61,0.12);
+      --orange: #ff7c4a;
+      --blue: #5db8f5;
+      --pink: #e86dcc;
+      --radius: 12px;
+    }
+
+    body {
+      width: 360px;
+      min-height: 520px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      overflow: hidden;
+    }
+
+    .screen { display: none; padding: 20px; }
+    .screen.active { display: block; }
+
+    /* ── HEADER ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .logo {
+      font-family: 'Fraunces', serif;
+      font-size: 18px;
+      font-weight: 300;
+      letter-spacing: -0.3px;
+      color: var(--text);
+    }
+    .logo span { color: var(--accent); }
+    .settings-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 6px 8px;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .settings-btn:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
+
+    /* ── PHASE BADGE ── */
+    .phase-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+    .phase-badge.work { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(200,245,61,0.25); }
+    .phase-badge.break { background: rgba(255,124,74,0.12); color: var(--orange); border: 1px solid rgba(255,124,74,0.25); }
+    .phase-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }
+
+    /* ── TIMER ── */
+    .timer-ring-wrap {
+      position: relative;
+      width: 180px;
+      height: 180px;
+      margin: 0 auto 24px;
+    }
+    .timer-svg { transform: rotate(-90deg); }
+    .ring-bg { fill: none; stroke: var(--surface2); stroke-width: 6; }
+    .ring-fill {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 6;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s linear, stroke 0.5s;
+    }
+    .ring-fill.break-phase { stroke: var(--orange); }
+    .timer-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .timer-digits {
+      font-family: 'Fraunces', serif;
+      font-size: 42px;
+      font-weight: 300;
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+    .timer-label { font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 4px; }
+
+    /* ── CONTROLS ── */
+    .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+    .btn-primary {
+      flex: 1;
+      padding: 12px;
+      background: var(--accent);
+      color: #0e0e0f;
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary:hover { background: #d9ff5a; transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary.stop { background: transparent; border: 1px solid rgba(255,124,74,0.4); color: var(--orange); }
+    .btn-primary.stop:hover { background: rgba(255,124,74,0.1); }
+    .btn-ghost {
+      padding: 12px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--muted);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-ghost:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+
+    /* ── STATS ── */
+    .stats {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .stat-val {
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      font-weight: 300;
+      color: var(--text);
+    }
+    .stat-label { font-size: 10px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; margin-top: 2px; }
+
+    /* ── LESSON CARD ── */
+    .lesson-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 4px;
+      position: relative;
+      overflow: hidden;
+    }
+    .lesson-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--orange), var(--pink));
+    }
+    .lesson-tag {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--orange);
+      margin-bottom: 8px;
+    }
+    .lesson-emoji { font-size: 28px; margin-bottom: 8px; display: block; }
+    .lesson-title {
+      font-family: 'Fraunces', serif;
+      font-size: 17px;
+      font-weight: 300;
+      line-height: 1.3;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    .lesson-concept { color: var(--muted); line-height: 1.6; margin-bottom: 8px; font-size: 12px; }
+    .lesson-detail { color: #9a9795; line-height: 1.6; font-size: 11px; }
+    .lesson-loading {
+      text-align: center;
+      padding: 24px 0;
+      color: var(--muted);
+    }
+    .loading-dots span {
+      animation: blink 1.4s infinite;
+      font-size: 20px;
+    }
+    .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink { 0%,80%,100% { opacity:0 } 40% { opacity:1 } }
+
+    /* ── NO API KEY ── */
+    .no-key-hint {
+      background: rgba(93,184,245,0.08);
+      border: 1px solid rgba(93,184,245,0.2);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 11px;
+      color: var(--blue);
+      line-height: 1.6;
+    }
+    .no-key-hint a { color: var(--blue); cursor: pointer; text-decoration: underline; }
+
+    /* ── IDLE PROMPT ── */
+    .idle-prompt {
+      background: var(--surface);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 24px 16px;
+      text-align: center;
+    }
+    .idle-icon { font-size: 32px; margin-bottom: 12px; }
+    .idle-title {
+      font-family: 'Fraunces', serif;
+      font-size: 16px;
+      font-weight: 300;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .idle-sub { color: var(--muted); font-size: 11px; line-height: 1.6; }
+
+    /* ── SETTINGS SCREEN ── */
+    .settings-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    .back-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 6px 10px;
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+    .back-btn:hover { color: var(--text); }
+    .settings-title {
+      font-family: 'Fraunces', serif;
+      font-size: 18px;
+      font-weight: 300;
+      color: var(--text);
+    }
+
+    .field { margin-bottom: 18px; }
+    .field label {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color 0.2s;
+      resize: none;
+    }
+    .field input:focus, .field textarea:focus {
+      border-color: rgba(200,245,61,0.4);
+    }
+    .field input::placeholder, .field textarea::placeholder { color: var(--muted); }
+
+    .topic-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .chip {
+      padding: 5px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .chip:hover, .chip.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    .save-btn {
+      width: 100%;
+      padding: 13px;
+      background: var(--accent);
+      color: #0e0e0f;
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .save-btn:hover { background: #d9ff5a; }
+
+    .key-hint { font-size: 10px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+    .key-hint a { color: var(--blue); text-decoration: none; }
+    .key-hint a:hover { text-decoration: underline; }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 20px 0;
+    }
+
+    /* ── SAVE BUTTON ON LESSON ── */
+    .lesson-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .save-lesson-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      padding: 5px 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .save-lesson-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .save-lesson-btn.saved { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+    .view-library-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 0;
+    }
+    .view-library-btn:hover { color: var(--text); }
+
+    /* ── LIBRARY SCREEN ── */
+    .lib-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .lib-title {
+      font-family: 'Fraunces', serif;
+      font-size: 18px;
+      font-weight: 300;
+      flex: 1;
+    }
+    .lib-count {
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--surface2);
+      border-radius: 20px;
+      padding: 3px 9px;
+    }
+
+    .lib-search {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      padding: 9px 12px;
+      outline: none;
+      margin-bottom: 10px;
+      transition: border-color 0.2s;
+    }
+    .lib-search:focus { border-color: rgba(200,245,61,0.4); }
+    .lib-search::placeholder { color: var(--muted); }
+
+    .lib-filters {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .filter-chip {
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 0.04em;
+    }
+    .filter-chip:hover, .filter-chip.active {
+      border-color: var(--pink);
+      color: var(--pink);
+      background: rgba(232,109,204,0.1);
+    }
+
+    .lib-list { overflow-y: auto; max-height: 340px; padding-right: 2px; }
+    .lib-list::-webkit-scrollbar { width: 3px; }
+    .lib-list::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 3px; }
+
+    .saved-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 14px;
+      margin-bottom: 8px;
+      position: relative;
+    }
+    .saved-card-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .saved-emoji { font-size: 20px; flex-shrink: 0; }
+    .saved-title {
+      font-family: 'Fraunces', serif;
+      font-size: 14px;
+      font-weight: 300;
+      line-height: 1.3;
+      flex: 1;
+    }
+    .saved-tag {
+      font-size: 10px;
+      color: var(--pink);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .saved-concept { font-size: 11px; color: var(--muted); line-height: 1.5; }
+    .saved-note {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #9a9795;
+      background: var(--surface2);
+      border-radius: 6px;
+      padding: 7px 10px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .saved-card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+    }
+    .saved-date { font-size: 10px; color: var(--muted); }
+    .saved-actions { display: flex; gap: 6px; }
+    .icon-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 13px;
+      padding: 3px 5px;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+    .icon-btn:hover { color: var(--text); background: var(--surface2); }
+    .icon-btn.delete:hover { color: #ff5f5f; }
+
+    .note-input-wrap { margin-top: 8px; display: none; }
+    .note-input-wrap.open { display: block; }
+    .note-textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      padding: 7px 10px;
+      outline: none;
+      resize: none;
+      line-height: 1.5;
+      min-height: 60px;
+      transition: border-color 0.2s;
+    }
+    .note-textarea:focus { border-color: rgba(200,245,61,0.3); }
+    .note-textarea::placeholder { color: var(--muted); }
+    .note-save-btn {
+      margin-top: 5px;
+      padding: 5px 12px;
+      background: var(--accent);
+      color: #0e0e0f;
+      border: none;
+      border-radius: 6px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .note-save-btn:hover { background: #d9ff5a; }
+
+    .lib-empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--muted);
+    }
+    .lib-empty-icon { font-size: 32px; margin-bottom: 12px; }
+    .lib-empty-text { font-size: 12px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+
+<!-- ── MAIN SCREEN ── -->
+<div id="mainScreen" class="screen active">
+  <div class="header">
+    <div class="logo">focus<span>&</span>learn</div>
+    <div style="display:flex;gap:6px">
+      <!-- <button class="settings-btn" onclick="showLibrary()" title="Saved lessons">🔖</button> -->
+      <button id="libraryBtn" class="settings-btn" title="Saved lessons">
+        🔖
+      </button>
+      <!-- <button class="settings-btn" onclick="showSettings()">⚙</button> -->
+      <button id="settingsBtn" class="settings-btn">
+        ⚙
+      </button>    
+    </div>
+  </div>
+
+  <div id="phaseBadge" class="phase-badge work">
+    <div class="phase-dot"></div>
+    <span id="phaseLabel">Work session</span>
+  </div>
+
+  <div class="timer-ring-wrap">
+    <svg class="timer-svg" width="180" height="180" viewBox="0 0 180 180">
+      <circle class="ring-bg" cx="90" cy="90" r="82"/>
+      <circle id="ringFill" class="ring-fill" cx="90" cy="90" r="82"
+        stroke-dasharray="515.2"
+        stroke-dashoffset="0"/>
+    </svg>
+    <div class="timer-center">
+      <div class="timer-digits" id="timerDisplay">01:00</div>
+      <div class="timer-label" id="timerSublabel">until break</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <!-- <button id="mainBtn" class="btn-primary" onclick="handleMainBtn()">Start Focus</button> -->
+    <button id="mainBtn" class="btn-primary">
+      Start Focus
+    </button>
+    <!-- <button id="skipBtn" class="btn-ghost" onclick="handleSkip()" style="display:none" title="Skip phase">⏭</button> -->
+    <button id="skipBtn" class="btn-ghost" style="display:none" title="Skip phase">
+      ⏭
+    </button>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-val" id="sessionCount">0</div>
+      <div class="stat-label">Sessions</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="focusTime">0m</div>
+      <div class="stat-label">Focus time</div>
+    </div>
+    <div class="stat-card" id="topicStat">
+      <div class="stat-val" style="font-size:14px;margin-top:3px" id="topicDisplay">—</div>
+      <div class="stat-label">Topic</div>
+    </div>
+  </div>
+
+  <div id="lessonArea"></div>
+</div>
+
+<!-- ── LIBRARY SCREEN ── -->
+<div id="libraryScreen" class="screen">
+  <div class="lib-header">
+    <!-- <button class="back-btn" onclick="showMain()">← Back</button> -->
+    <button id="backBtn1" class="back-btn">
+      ← Back
+    </button>
+    <div class="lib-title">Saved lessons</div>
+    <div class="lib-count" id="libCount">0</div>
+  </div>
+
+  <input class="lib-search" id="libSearch" placeholder="Search saved lessons..." />
+
+  <div class="lib-filters" id="libFilters">
+    <div class="filter-chip active" data-tag="">All</div>
+  </div>
+
+  <div class="lib-list" id="libList"></div>
+</div>
+
+<!-- ── SETTINGS SCREEN ── -->
+<div id="settingsScreen" class="screen">
+  <div class="settings-header">
+    <!-- <button class="back-btn" onclick="showMain()">← Back</button> -->
+    <button id="backBtn2" class="back-btn">
+      ← Back
+    </button>
+    <div class="settings-title">Settings</div>
+  </div>
+
+  <!-- Claude -->
+  <!-- <div class="field">
+    <label>Anthropic API Key</label>
+    <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." />
+    <div class="key-hint">
+      Required for AI-powered lessons. Get yours at
+      <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>
+      — free tier available.
+    </div>
+  </div> -->
+
+  <!-- Gemini -->
+  <div class="field">
+    <label>Gemini API Key</label>
+    <input type="password" id="apiKeyInput" placeholder="AIzaSy..." />
+    <div class="key-hint">
+      Required for AI-powered lessons. Get yours at
+      <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a>
+      — free tier available.
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="field">
+    <label>Learning topic (optional)</label>
+    <div class="topic-chips" id="topicChips">
+      <div class="chip" data-topic="">✨ Surprise me</div>
+      <div class="chip" data-topic="software engineering and coding">💻 Engineering</div>
+      <div class="chip" data-topic="product management and UX design">🎯 Product</div>
+      <div class="chip" data-topic="data science and machine learning">📊 Data / ML</div>
+      <div class="chip" data-topic="entrepreneurship and startups">🚀 Startups</div>
+      <div class="chip" data-topic="psychology and human behaviour">🧠 Psychology</div>
+      <div class="chip" data-topic="history and philosophy">📜 History</div>
+      <div class="chip" data-topic="finance and investing">💰 Finance</div>
+      <div class="chip" data-topic="science and physics">🔬 Science</div>
+    </div>
+    <input type="text" id="customTopic" placeholder="Or type your own topic..." />
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- <button class="save-btn" onclick="saveSettings()">Save settings</button> -->
+  <button id="saveSettingsBtn" class="save-btn">
+    Save settings
+  </button>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>
