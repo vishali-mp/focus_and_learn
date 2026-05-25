@@ -1,10 +1,12 @@
 // number of minutes
 // original
-// const WORK_SECS = 25 * 60;
-// const BREAK_SECS = 5 * 60;
+const WORK_SECS = 25 * 60;
+const LEARNING_SECS = 2 * 60;
+const BREAK_SECS = 5 * 60;
 // testing modified
-const WORK_SECS = 1 * 60;
-const BREAK_SECS = 1 * 60;
+// const WORK_SECS = 1 * 60;
+// const LEARNING_SECS = 1 * 60;
+// const BREAK_SECS = 1 * 60;
 
 let tickInterval = null;
 
@@ -35,12 +37,17 @@ function fmtTime(secs) {
   return `${m}:${s}`;
 }
 
-function updateRing(ratio, isBreak) {
+function updateRing(ratio, phase) {
   const ring = document.getElementById('ringFill');
   const circ = 515.2;
   ring.style.strokeDashoffset = circ * (1 - ratio);
-  if (isBreak) ring.classList.add('break-phase');
-  else ring.classList.remove('break-phase');
+
+  // Remove all phase classes
+  ring.classList.remove('break-phase', 'learning-phase');
+
+  // Add appropriate class
+  if (phase === 'break') ring.classList.add('break-phase');
+  else if (phase === 'learning') ring.classList.add('learning-phase');
 }
 
 
@@ -286,12 +293,12 @@ async function refresh() {
     clearInterval(tickInterval);
     badge.className = 'phase-badge work';
     phaseLabel.textContent = 'Ready';
-    timerDisplay.textContent = '01:00';
+    timerDisplay.textContent = '25:00';
     timerSub.textContent = 'focus session';
     mainBtn.textContent = 'Start Focus';
     mainBtn.className = 'btn-primary';
     skipBtn.style.display = 'none';
-    updateRing(1, false);
+    updateRing(1, 'work');
     if (!apiKey) renderNoKey();
     else renderIdle();
     return;
@@ -301,13 +308,32 @@ async function refresh() {
   mainBtn.textContent = 'Stop';
   mainBtn.className = 'btn-primary stop';
 
-  const isBreak = phase === 'break';
-  const totalSecs = isBreak ? BREAK_SECS : WORK_SECS;
-  badge.className = `phase-badge ${isBreak ? 'break' : 'work'}`;
-  phaseLabel.textContent = isBreak ? 'Break time' : 'Focus mode';
-  timerSub.textContent = isBreak ? 'until next session' : 'until break';
+  // Determine total seconds based on phase
+  let totalSecs, phaseClass, phaseLabelText, timerSubText;
 
-  if (isBreak) {
+  if (phase === 'work') {
+    totalSecs = WORK_SECS;
+    phaseClass = 'work';
+    phaseLabelText = 'Focus mode';
+    timerSubText = 'until learning';
+  } else if (phase === 'learning') {
+    totalSecs = LEARNING_SECS;
+    phaseClass = 'learning';
+    phaseLabelText = 'Learning time';
+    timerSubText = 'until break';
+  } else { // break
+    totalSecs = BREAK_SECS;
+    phaseClass = 'break';
+    phaseLabelText = 'Break time';
+    timerSubText = 'until next session';
+  }
+
+  badge.className = `phase-badge ${phaseClass}`;
+  phaseLabel.textContent = phaseLabelText;
+  timerSub.textContent = timerSubText;
+
+  // Show lesson during learning and break phases
+  if (phase === 'learning' || phase === 'break') {
     if (breakLesson) await renderLesson(breakLesson);
     else if (apiKey) renderLessonLoading();
     else renderNoKey();
@@ -328,22 +354,22 @@ async function refresh() {
   tickInterval = setInterval(() => {
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
     const remaining = Math.max(0, totalSecs - elapsed);
-    
+
     timerDisplay.textContent = fmtTime(remaining);
-    updateRing(remaining / totalSecs, isBreak);
+    updateRing(remaining / totalSecs, phase);
 
     // FIX: If the timer hits zero, stop ticking and sync with background storage
     if (remaining === 0) {
       clearInterval(tickInterval);
       // Small timeout gives the background service worker a moment to process its alarm
-      setTimeout(refresh, 500); 
+      setTimeout(refresh, 500);
     }
   }, 500);
 
   const elapsed0 = Math.floor((Date.now() - startTime) / 1000);
   const remaining0 = Math.max(0, totalSecs - elapsed0);
   timerDisplay.textContent = fmtTime(remaining0);
-  updateRing(remaining0 / totalSecs, isBreak);
+  updateRing(remaining0 / totalSecs, phase);
 }
 
 function handleMainBtn() {

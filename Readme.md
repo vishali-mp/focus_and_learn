@@ -8,9 +8,10 @@ Built with a dark, modern aesthetic utilizing custom synthesized audio feedback 
 
 ## 🚀 Features
 
-* **Smart Phase Transitions:** Fluidly swaps between Work and Break states with automatic countdown synchronization.
-* **AI Micro-Lessons:** Leverages Google's **Gemini 2.0 Flash** via AI Studio to deliver hyper-focused, concise concepts during your breaks.
+* **3-Phase Pomodoro Cycle:** Complete workflow with Focus (25 min) → Learning (2 min) → Break (5 min) phases, each with distinct visual and audio cues.
+* **AI Micro-Lessons:** Leverages Google's **Gemini 2.0 Flash** via AI Studio to deliver hyper-focused, concise concepts during your 2-minute learning sessions.
 * **Custom Synthesized Audio:** Bypasses browser autoplay restrictions using the Web Audio API to create unique sound signatures:
+    * *Learning Time:* An enlightening ascending chime to signal your micro-lesson.
     * *Break Time:* A relaxing, double ambient bell chime.
     * *Focus Time:* A crisp, grounding triple-beep to get your head back in the game.
 * **Personalized Learning Topics:** Choose from preset categories (Engineering, Data/ML, Psychology, Startups) or type your own custom focus topic.

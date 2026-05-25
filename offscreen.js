@@ -56,14 +56,21 @@ chrome.runtime.onMessage.addListener((msg) => {
     if (msg.target === 'offscreen' && msg.type === 'PLAY_SOUND') {
       try {
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        if (msg.phase === 'break') {
+
+        if (msg.phase === 'learning') {
+          // 🧠 ENLIGHTENING ascending chime for Learning Time
+          playChime(audioCtx, 660, 0.3); // E note
+          setTimeout(() => {
+            playChime(audioCtx, 880, 0.5); // A note (ascending)
+          }, 100);
+
+        } else if (msg.phase === 'break') {
           // 🔔 RELAXING ambient double-chime for Break Time
           playChime(audioCtx, 880, 0.4); // Clean high A note
           setTimeout(() => {
             playChime(audioCtx, 1320, 0.6); // Perfect fifth harmonized overtone
           }, 120);
-          
+
         } else if (msg.phase === 'work') {
           // ⏱️ GROUNDING rhythmic alert tone for Focus/Work Time
           playBeep(audioCtx, 440, 0.1);

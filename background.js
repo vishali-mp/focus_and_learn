@@ -1,13 +1,15 @@
-// const WORK_DURATION_MINS = 25;
-// const BREAK_DURATION_MINS = 5;
+const WORK_DURATION_MINS = 25;
+const LEARNING_DURATION_MINS = 2;
+const BREAK_DURATION_MINS = 5;
 
-const WORK_DURATION_MINS = 1;
-const BREAK_DURATION_MINS = 1;
+// const WORK_DURATION_MINS = 1;
+// const LEARNING_DURATION_MINS = 1; // 2 minutes for testing set to 1
+// const BREAK_DURATION_MINS = 1;
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({
     isRunning: false,
-    phase: 'work',
+    phase: 'work', // Can be: 'work', 'learning', or 'break'
     sessionCount: 0,
     topic: '',
     apiKey: '',
@@ -22,44 +24,61 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (!data.isRunning) return;
 
     if (data.phase === 'work') {
+      // Work session complete → Start Learning phase
       const lesson = await fetchLesson(data.topic, data.apiKey);
-      
-      // Play chime for entering Break phase
-      await playSound('break');
-      
+
+      await playSound('learning');
+
       await chrome.storage.local.set({
-        phase: 'break',
+        phase: 'learning',
         startTime: Date.now(),
         breakLesson: lesson,
         sessionCount: (data.sessionCount || 0) + 1
       });
-      chrome.alarms.create('pomodoroTick', { delayInMinutes: BREAK_DURATION_MINS });
-      
-      chrome.notifications.create('breakTime', {
+      chrome.alarms.create('pomodoroTick', { delayInMinutes: LEARNING_DURATION_MINS });
+
+      chrome.notifications.create('learningTime', {
         type: 'basic',
         iconUrl: 'icons/icon128.png',
-        title: '🧠 Break time! You earned it.',
-        message: lesson ? `Quick lesson: ${lesson.title}` : 'Time to rest your eyes and stretch!',
+        title: '🧠 Learning time!',
+        message: lesson ? `Quick lesson: ${lesson.title}` : 'Time for a micro-learning session!',
         priority: 2,
         requireInteraction: true
       });
+    } else if (data.phase === 'learning') {
+      // Learning session complete → Start Break phase
+      await playSound('break');
+
+      await chrome.storage.local.set({
+        phase: 'break',
+        startTime: Date.now()
+        // Keep the breakLesson from learning phase
+      });
+      chrome.alarms.create('pomodoroTick', { delayInMinutes: BREAK_DURATION_MINS });
+
+      chrome.notifications.create('breakTime', {
+        type: 'basic',
+        iconUrl: 'icons/icon128.png',
+        title: '☕ Break time! Relax.',
+        message: 'Time to rest your eyes and stretch!',
+        priority: 1
+      });
     } else {
-      
-      // Play chime for entering Work phase (Break is over!)
+      // Break complete → Back to Work phase
       await playSound('work');
-      
+
       await chrome.storage.local.set({
         phase: 'work',
         startTime: Date.now(),
         breakLesson: null
       });
       chrome.alarms.create('pomodoroTick', { delayInMinutes: WORK_DURATION_MINS });
-      
+
       chrome.notifications.create('workTime', {
         type: 'basic',
         iconUrl: 'icons/icon128.png',
         title: '⏱️ Back to focus!',
-        message: `Break over. ${WORK_DURATION_MINS} minutes of deep work starts now.`,
+        message: `Let's start another ${WORK_DURATION_MINS} minute focus session.`,
         priority: 1
       });
     }
@@ -249,16 +268,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     chrome.alarms.clear('pomodoroTick');
     chrome.storage.local.get(null, async (data) => {
       if (data.phase === 'work') {
+        // Skip to learning phase
         const lesson = await fetchLesson(data.topic, data.apiKey);
-        await playSound('break');
+        await playSound('learning');
         await chrome.storage.local.set({
-          phase: 'break',
+          phase: 'learning',
           startTime: Date.now(),
           breakLesson: lesson,
           sessionCount: (data.sessionCount || 0) + 1
         });
+        chrome.alarms.create('pomodoroTick', { delayInMinutes: LEARNING_DURATION_MINS });
+      } else if (data.phase === 'learning') {
+        // Skip to break phase
+        await playSound('break');
+        await chrome.storage.local.set({
+          phase: 'break',
+          startTime: Date.now()
+          // Keep the lesson
+        });
         chrome.alarms.create('pomodoroTick', { delayInMinutes: BREAK_DURATION_MINS });
       } else {
+        // Skip to work phase
         await playSound('work');
         await chrome.storage.local.set({
           phase: 'work',
@@ -269,7 +299,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       sendResponse({ ok: true });
     });
-    return true; 
+    return true;
   }
 }); // <-- Added the crucial closing statement back safely!
 
