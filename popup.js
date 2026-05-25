@@ -297,6 +297,7 @@ async function refresh() {
     timerSub.textContent = 'focus session';
     mainBtn.textContent = 'Start Focus';
     mainBtn.className = 'btn-primary';
+    mainBtn.title = 'Start a 25-minute focus session';
     skipBtn.style.display = 'none';
     updateRing(1, 'work');
     if (!apiKey) renderNoKey();
@@ -307,6 +308,7 @@ async function refresh() {
   skipBtn.style.display = 'flex';
   mainBtn.textContent = 'Stop';
   mainBtn.className = 'btn-primary stop';
+  mainBtn.title = 'Stop the current timer';
 
   // Determine total seconds based on phase
   let totalSecs, phaseClass, phaseLabelText, timerSubText;
@@ -433,15 +435,25 @@ function saveSettings() {
   const activeChip = document.querySelector('#topicChips .chip.active');
   const topic = customTopic || (activeChip ? activeChip.dataset.topic : '');
 
-  chrome.storage.local.set({ apiKey, topic }, () => {
-    const btn = document.querySelector('.save-btn');
-    btn.textContent = 'Saved ✓';
-    btn.style.background = '#a8e83d';
-    setTimeout(() => {
-      btn.textContent = 'Save settings';
-      btn.style.background = '';
-      showMain();
-    }, 1200);
+  // Get current topic to check if it changed
+  chrome.storage.local.get(['topic'], (data) => {
+    const topicChanged = data.topic !== topic;
+
+    chrome.storage.local.set({ apiKey, topic }, () => {
+      // If topic changed, clear the lesson queue
+      if (topicChanged) {
+        chrome.runtime.sendMessage({ type: 'CLEAR_LESSON_QUEUE' });
+      }
+
+      const btn = document.querySelector('.save-btn');
+      btn.textContent = 'Saved ✓';
+      btn.style.background = '#a8e83d';
+      setTimeout(() => {
+        btn.textContent = 'Save settings';
+        btn.style.background = '';
+        showMain();
+      }, 1200);
+    });
   });
 }
 

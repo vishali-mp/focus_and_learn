@@ -14,7 +14,9 @@ chrome.runtime.onInstalled.addListener(() => {
     topic: '',
     apiKey: '',
     startTime: null,
-    breakLesson: null
+    breakLesson: null,
+    lessonQueue: [], // Queue of pre-fetched lessons
+    lastQueueTopic: '' // Track topic for which lessons were fetched
   });
 });
 
@@ -94,7 +96,7 @@ const AI_PROVIDER = "gemini";
 USE_MOCK_LESSONS = false
 
 async function fetchLesson(topic, apiKey) {
-  
+
   if (USE_MOCK_LESSONS) {
     return {
       title: "Caching",
@@ -105,17 +107,60 @@ async function fetchLesson(topic, apiKey) {
     };
   }
 
-  if (AI_PROVIDER === "gemini") {
-    return await fetchGeminiLesson(topic, apiKey);
-  }
-  
-  if (AI_PROVIDER === "openrouter") {
-    return await fetchOpenRouterLesson(topic, apiKey);
+  // Get current queue state from storage
+  const data = await chrome.storage.local.get(['lessonQueue', 'lastQueueTopic']);
+  let { lessonQueue, lastQueueTopic } = data;
+
+  // Initialize if not present
+  lessonQueue = lessonQueue || [];
+  lastQueueTopic = lastQueueTopic || '';
+
+  // Check if topic changed or queue is empty
+  const topicChanged = lastQueueTopic !== topic;
+
+  if (topicChanged) {
+    // Topic changed - clear the old queue
+    lessonQueue = [];
+    console.log('Topic changed, clearing lesson queue');
   }
 
+  if (lessonQueue.length === 0) {
+    // Queue is empty - fetch new batch of lessons
+    console.log('Fetching new batch of 5 lessons...');
+
+    let newLessons = null;
+
+    if (AI_PROVIDER === "gemini") {
+      newLessons = await fetchGeminiLesson(topic, apiKey);
+    } else if (AI_PROVIDER === "openrouter") {
+      newLessons = await fetchOpenRouterLesson(topic, apiKey);
+    }
+
+    if (newLessons && Array.isArray(newLessons)) {
+      lessonQueue = newLessons;
+      lastQueueTopic = topic;
+      console.log(`Added ${newLessons.length} lessons to queue`);
+    } else {
+      // Fallback if API fails - return single lesson or null
+      return newLessons;
+    }
+  }
+
+  // Pop the first lesson from the queue
+  const lesson = lessonQueue.shift();
+
+  // Save updated queue back to storage
+  await chrome.storage.local.set({
+    lessonQueue,
+    lastQueueTopic
+  });
+
+  console.log(`Lessons remaining in queue: ${lessonQueue.length}`);
+
+  return lesson;
 }
 
-// openrouter
+// openrouter - fetches 5 lessons at once
 async function fetchOpenRouterLesson(topic, apiKey) {
   try {
     const response = await fetch(
@@ -132,18 +177,27 @@ async function fetchOpenRouterLesson(topic, apiKey) {
             {
               role: "user",
               content: `
-Generate a concise microlearning lesson.
+Generate 5 unique, diverse microlearning lessons.
 
 Topic: ${topic || "interesting fact"}
 
-Return ONLY valid JSON:
-{
-  "title": "",
-  "concept": "",
-  "detail": "",
-  "emoji": "",
-  "tag": ""
-}
+Requirements:
+- Each lesson should be on a different subtopic
+- surprising or memorable
+- avoid common trivia
+- avoid repeating ideas across the 5 lessons
+- concise and engaging
+
+Return ONLY valid JSON array with 5 lessons:
+[
+  {
+    "title": "",
+    "concept": "",
+    "detail": "",
+    "emoji": "",
+    "tag": ""
+  }
+]
 `
             }
           ]
@@ -156,7 +210,10 @@ Return ONLY valid JSON:
     const text =
       data.choices?.[0]?.message?.content;
 
-    return JSON.parse(text);
+    const lessons = JSON.parse(text);
+
+    // Return array of 5 lessons or null if invalid
+    return Array.isArray(lessons) && lessons.length > 0 ? lessons : null;
 
   } catch (e) {
     console.error(e);
@@ -178,7 +235,7 @@ const RANDOM_TOPICS = [
 const randomTopic =
   RANDOM_TOPICS[Math.floor(Math.random() * RANDOM_TOPICS.length)];
 
-// gemini testing
+// gemini testing - fetches 5 lessons at once
 async function fetchGeminiLesson(topic, apiKey) {
   if (!apiKey) return null;
 
@@ -197,20 +254,29 @@ async function fetchGeminiLesson(topic, apiKey) {
         contents: [{
           parts: [{
             text: `
-Generate ONE unique microlearning lesson.
+Generate 5 unique, diverse microlearning lessons.
 
 Topic: ${topic || randomTopic}
 
 Requirements:
+- Each lesson should be on a different subtopic
 - surprising or memorable
 - avoid common trivia
-- avoid repeating previous ideas
+- avoid repeating ideas across the 5 lessons
 - concise
 - engaging
+- diverse difficulty levels (beginner to advanced mix)
 
-
-Return valid JSON with:
-title, concept, detail, emoji, tag
+Return valid JSON array with 5 lessons:
+[
+  {
+    "title": "",
+    "concept": "",
+    "detail": "",
+    "emoji": "",
+    "tag": ""
+  }
+]
 `
           }]
         }],
@@ -237,7 +303,10 @@ title, concept, detail, emoji, tag
       return null;
     }
 
-    return JSON.parse(text);
+    const lessons = JSON.parse(text);
+
+    // Return array of 5 lessons or null if invalid
+    return Array.isArray(lessons) && lessons.length > 0 ? lessons : null;
 
   } catch (e) {
     console.error('Gemini Lesson fetch failed:', e);
@@ -262,6 +331,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       phase: 'work',
       startTime: null,
       breakLesson: null
+    });
+    sendResponse({ ok: true });
+  } else if (msg.type === 'CLEAR_LESSON_QUEUE') {
+    // Clear the lesson queue when topic changes
+    chrome.storage.local.set({
+      lessonQueue: [],
+      lastQueueTopic: ''
     });
     sendResponse({ ok: true });
   } else if (msg.type === 'SKIP_PHASE') {

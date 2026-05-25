@@ -559,14 +559,12 @@
   <div class="header">
     <div class="logo">focus<span>&</span>learn</div>
     <div style="display:flex;gap:6px">
-      <!-- <button class="settings-btn" onclick="showLibrary()" title="Saved lessons">🔖</button> -->
-      <button id="libraryBtn" class="settings-btn" title="Saved lessons">
+      <button id="libraryBtn" class="settings-btn" title="View saved lessons">
         🔖
       </button>
-      <!-- <button class="settings-btn" onclick="showSettings()">⚙</button> -->
-      <button id="settingsBtn" class="settings-btn">
+      <button id="settingsBtn" class="settings-btn" title="Configure API key and learning topics">
         ⚙
-      </button>    
+      </button>
     </div>
   </div>
 
@@ -589,26 +587,24 @@
   </div>
 
   <div class="controls">
-    <!-- <button id="mainBtn" class="btn-primary" onclick="handleMainBtn()">Start Focus</button> -->
-    <button id="mainBtn" class="btn-primary">
+    <button id="mainBtn" class="btn-primary" title="Start a 25-minute focus session">
       Start Focus
     </button>
-    <!-- <button id="skipBtn" class="btn-ghost" onclick="handleSkip()" style="display:none" title="Skip phase">⏭</button> -->
-    <button id="skipBtn" class="btn-ghost" style="display:none" title="Skip phase">
+    <button id="skipBtn" class="btn-ghost" style="display:none" title="Skip to next phase">
       ⏭
     </button>
   </div>
 
   <div class="stats">
-    <div class="stat-card">
+    <div class="stat-card" title="Number of completed focus sessions">
       <div class="stat-val" id="sessionCount">0</div>
       <div class="stat-label">Sessions</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" title="Total focus time today">
       <div class="stat-val" id="focusTime">0m</div>
       <div class="stat-label">Focus time</div>
     </div>
-    <div class="stat-card" id="topicStat">
+    <div class="stat-card" id="topicStat" title="Current learning topic">
       <div class="stat-val" style="font-size:14px;margin-top:3px" id="topicDisplay">—</div>
       <div class="stat-label">Topic</div>
     </div>
@@ -620,15 +616,14 @@
 <!-- ── LIBRARY SCREEN ── -->
 <div id="libraryScreen" class="screen">
   <div class="lib-header">
-    <!-- <button class="back-btn" onclick="showMain()">← Back</button> -->
-    <button id="backBtn1" class="back-btn">
+    <button id="backBtn1" class="back-btn" title="Back to main screen">
       ← Back
     </button>
     <div class="lib-title">Saved lessons</div>
     <div class="lib-count" id="libCount">0</div>
   </div>
 
-  <input class="lib-search" id="libSearch" placeholder="Search saved lessons..." />
+  <input class="lib-search" id="libSearch" placeholder="Search saved lessons..." title="Search by title, concept, or your notes" />
 
   <div class="lib-filters" id="libFilters">
     <div class="filter-chip active" data-tag="">All</div>
@@ -640,8 +635,7 @@
 <!-- ── SETTINGS SCREEN ── -->
 <div id="settingsScreen" class="screen">
   <div class="settings-header">
-    <!-- <button class="back-btn" onclick="showMain()">← Back</button> -->
-    <button id="backBtn2" class="back-btn">
+    <button id="backBtn2" class="back-btn" title="Back to main screen">
       ← Back
     </button>
     <div class="settings-title">Settings</div>
@@ -661,7 +655,7 @@
   <!-- Gemini -->
   <div class="field">
     <label>Gemini API Key</label>
-    <input type="password" id="apiKeyInput" placeholder="AIzaSy..." />
+    <input type="password" id="apiKeyInput" placeholder="AIzaSy..." title="Enter your Gemini API key for AI-powered micro-lessons" />
     <div class="key-hint">
       Required for AI-powered lessons. Get yours at
       <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a>
@@ -674,23 +668,22 @@
   <div class="field">
     <label>Learning topic (optional)</label>
     <div class="topic-chips" id="topicChips">
-      <div class="chip" data-topic="">✨ Surprise me</div>
-      <div class="chip" data-topic="software engineering and coding">💻 Engineering</div>
-      <div class="chip" data-topic="product management and UX design">🎯 Product</div>
-      <div class="chip" data-topic="data science and machine learning">📊 Data / ML</div>
-      <div class="chip" data-topic="entrepreneurship and startups">🚀 Startups</div>
-      <div class="chip" data-topic="psychology and human behaviour">🧠 Psychology</div>
-      <div class="chip" data-topic="history and philosophy">📜 History</div>
-      <div class="chip" data-topic="finance and investing">💰 Finance</div>
-      <div class="chip" data-topic="science and physics">🔬 Science</div>
+      <div class="chip" data-topic="" title="Get random lessons across various topics">✨ Surprise me</div>
+      <div class="chip" data-topic="software engineering and coding" title="Software development, algorithms, and coding">💻 Engineering</div>
+      <div class="chip" data-topic="product management and UX design" title="Product strategy and user experience">🎯 Product</div>
+      <div class="chip" data-topic="data science and machine learning" title="Data analysis and ML concepts">📊 Data / ML</div>
+      <div class="chip" data-topic="entrepreneurship and startups" title="Business and startup insights">🚀 Startups</div>
+      <div class="chip" data-topic="psychology and human behaviour" title="Human psychology and behavior">🧠 Psychology</div>
+      <div class="chip" data-topic="history and philosophy" title="Historical events and philosophical ideas">📜 History</div>
+      <div class="chip" data-topic="finance and investing" title="Personal finance and investment strategies">💰 Finance</div>
+      <div class="chip" data-topic="science and physics" title="Scientific concepts and physics">🔬 Science</div>
     </div>
-    <input type="text" id="customTopic" placeholder="Or type your own topic..." />
+    <input type="text" id="customTopic" placeholder="Or type your own topic..." title="Enter a custom learning topic" />
   </div>
 
   <div class="divider"></div>
 
-  <!-- <button class="save-btn" onclick="saveSettings()">Save settings</button> -->
-  <button id="saveSettingsBtn" class="save-btn">
+  <button id="saveSettingsBtn" class="save-btn" title="Save your API key and topic preferences">
     Save settings
   </button>
 </div>
