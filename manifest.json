@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Focus & Learn — Pomodoro Brain Booster",
-  "version": "1.0.0",
+  "name": "Focus & Learn - Pomodoro Brain Booster",
+  "version": "2.0.0",
   "description": "Stay focused with the Pomodoro technique. Get AI-powered micro-lessons during every break.",
   "permissions": [
     "alarms",

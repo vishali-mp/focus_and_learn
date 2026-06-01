@@ -1,22 +1,45 @@
-const WORK_DURATION_MINS = 25;
-const LEARNING_DURATION_MINS = 2;
-const BREAK_DURATION_MINS = 5;
+const DEFAULT_TIMER_SETTINGS = {
+  workDuration: 25,
+  breakDuration: 5
+};
+const LESSON_QUEUE_REFILL_THRESHOLD = 2;
+let isQueueRefilling = false;
 
-// const WORK_DURATION_MINS = 1;
-// const LEARNING_DURATION_MINS = 1; // 2 minutes for testing set to 1
-// const BREAK_DURATION_MINS = 1;
+// Analytics schema:
+// {
+//   totalFocusMinutes: number,
+//   completedWorkSessions, completedBreaks: number,
+//   lessonsConsumed: number, appLaunchCount: number,
+//   currentStreakDays, longestStreakDays: number,
+//   lastStudyDate: string (YYYY-MM-DD)
+// }
+const DEFAULT_ANALYTICS = {
+  totalFocusMinutes: 0,
+  completedWorkSessions: 0, completedBreaks: 0,
+  lessonsConsumed: 0, appLaunchCount: 0,
+  currentStreakDays: 0, longestStreakDays: 0, lastStudyDate: ''
+};
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.set({
-    isRunning: false,
-    phase: 'work', // Can be: 'work', 'learning', or 'break'
-    sessionCount: 0,
-    topic: '',
-    apiKey: '',
-    startTime: null,
-    breakLesson: null,
-    lessonQueue: [], // Queue of pre-fetched lessons
-    lastQueueTopic: '' // Track topic for which lessons were fetched
+  chrome.storage.local.get(['timerSettings', 'analytics', 'breakLesson'], (data) => {
+    const migrated = {};
+    if (data.breakLesson) {
+      migrated.currentBreakLesson = data.breakLesson;
+    }
+    chrome.storage.local.set({
+      isRunning: false,
+      phase: 'work',
+      sessionCount: 0,
+      topic: '',
+      apiKey: '',
+      startTime: null,
+      currentBreakLesson: null,
+      lessonQueue: [],
+      lastQueueTopic: '',
+      timerSettings: data.timerSettings || { ...DEFAULT_TIMER_SETTINGS },
+      analytics: data.analytics || { ...DEFAULT_ANALYTICS },
+      ...migrated
+    });
   });
 });
 
@@ -25,62 +48,45 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     const data = await chrome.storage.local.get(null);
     if (!data.isRunning) return;
 
+    const settings = { ...DEFAULT_TIMER_SETTINGS, ...(data.timerSettings || {}) };
+
     if (data.phase === 'work') {
-      // Work session complete → Start Learning phase
       const lesson = await fetchLesson(data.topic, data.apiKey);
 
-      await playSound('learning');
-
-      await chrome.storage.local.set({
-        phase: 'learning',
-        startTime: Date.now(),
-        breakLesson: lesson,
-        sessionCount: (data.sessionCount || 0) + 1
-      });
-      chrome.alarms.create('pomodoroTick', { delayInMinutes: LEARNING_DURATION_MINS });
-
-      chrome.notifications.create('learningTime', {
-        type: 'basic',
-        iconUrl: 'icons/icon128.png',
-        title: '🧠 Learning time!',
-        message: lesson ? `Quick lesson: ${lesson.title}` : 'Time for a micro-learning session!',
-        priority: 2,
-        requireInteraction: true
-      });
-    } else if (data.phase === 'learning') {
-      // Learning session complete → Start Break phase
       await playSound('break');
+      await trackPhaseCompletion('work', settings.workDuration);
 
       await chrome.storage.local.set({
         phase: 'break',
-        startTime: Date.now()
-        // Keep the breakLesson from learning phase
+        startTime: Date.now(),
+        currentBreakLesson: lesson,
+        sessionCount: (data.sessionCount || 0) + 1
       });
-      chrome.alarms.create('pomodoroTick', { delayInMinutes: BREAK_DURATION_MINS });
+      chrome.alarms.create('pomodoroTick', { delayInMinutes: settings.breakDuration });
 
       chrome.notifications.create('breakTime', {
         type: 'basic',
         iconUrl: 'icons/icon128.png',
-        title: '☕ Break time! Relax.',
-        message: 'Time to rest your eyes and stretch!',
+        title: '☕ Break time!',
+        message: lesson ? `Micro-lesson: ${lesson.title}` : 'Time to rest your eyes and stretch!',
         priority: 1
       });
     } else {
-      // Break complete → Back to Work phase
       await playSound('work');
+      await trackPhaseCompletion('break', settings.breakDuration);
 
       await chrome.storage.local.set({
         phase: 'work',
         startTime: Date.now(),
-        breakLesson: null
+        currentBreakLesson: null
       });
-      chrome.alarms.create('pomodoroTick', { delayInMinutes: WORK_DURATION_MINS });
+      chrome.alarms.create('pomodoroTick', { delayInMinutes: settings.workDuration });
 
       chrome.notifications.create('workTime', {
         type: 'basic',
         iconUrl: 'icons/icon128.png',
         title: '⏱️ Back to focus!',
-        message: `Let's start another ${WORK_DURATION_MINS} minute focus session.`,
+        message: `Let's start another ${settings.workDuration} minute focus session.`,
         priority: 1
       });
     }
@@ -95,6 +101,36 @@ chrome.notifications.onClicked.addListener((notificationId) => {
 const AI_PROVIDER = "gemini";
 USE_MOCK_LESSONS = false
 
+async function fetchBatch(topic, apiKey) {
+  if (AI_PROVIDER === "gemini") {
+    return await fetchGeminiLesson(topic, apiKey);
+  } else if (AI_PROVIDER === "openrouter") {
+    return await fetchOpenRouterLesson(topic, apiKey);
+  }
+  return null;
+}
+
+async function triggerQueueRefill(topic, apiKey) {
+  if (isQueueRefilling) return;
+  isQueueRefilling = true;
+
+  try {
+    console.log('Refilling lesson queue...');
+    const batch = await fetchBatch(topic, apiKey);
+    if (batch && Array.isArray(batch)) {
+      const data = await chrome.storage.local.get(['lessonQueue']);
+      const queue = data.lessonQueue || [];
+      queue.push(...batch);
+      await chrome.storage.local.set({ lessonQueue: queue });
+      console.log(`Refill added ${batch.length} lessons, queue now ${queue.length}`);
+    }
+  } catch (e) {
+    console.error('Queue refill failed:', e);
+  } finally {
+    isQueueRefilling = false;
+  }
+}
+
 async function fetchLesson(topic, apiKey) {
 
   if (USE_MOCK_LESSONS) {
@@ -107,57 +143,59 @@ async function fetchLesson(topic, apiKey) {
     };
   }
 
-  // Get current queue state from storage
   const data = await chrome.storage.local.get(['lessonQueue', 'lastQueueTopic']);
   let { lessonQueue, lastQueueTopic } = data;
-
-  // Initialize if not present
   lessonQueue = lessonQueue || [];
   lastQueueTopic = lastQueueTopic || '';
 
-  // Check if topic changed or queue is empty
-  const topicChanged = lastQueueTopic !== topic;
-
-  if (topicChanged) {
-    // Topic changed - clear the old queue
+  if (lastQueueTopic !== topic) {
     lessonQueue = [];
+    isQueueRefilling = false;
     console.log('Topic changed, clearing lesson queue');
   }
 
   if (lessonQueue.length === 0) {
-    // Queue is empty - fetch new batch of lessons
-    console.log('Fetching new batch of 5 lessons...');
-
-    let newLessons = null;
-
-    if (AI_PROVIDER === "gemini") {
-      newLessons = await fetchGeminiLesson(topic, apiKey);
-    } else if (AI_PROVIDER === "openrouter") {
-      newLessons = await fetchOpenRouterLesson(topic, apiKey);
-    }
-
-    if (newLessons && Array.isArray(newLessons)) {
-      lessonQueue = newLessons;
+    console.log('Queue empty, fetching new lessons...');
+    const batch = await fetchBatch(topic, apiKey);
+    if (batch && Array.isArray(batch)) {
+      lessonQueue = batch;
       lastQueueTopic = topic;
-      console.log(`Added ${newLessons.length} lessons to queue`);
-    } else {
-      // Fallback if API fails - return single lesson or null
-      return newLessons;
+      console.log(`Fetched ${batch.length} lessons`);
     }
   }
 
-  // Pop the first lesson from the queue
   const lesson = lessonQueue.shift();
-
-  // Save updated queue back to storage
-  await chrome.storage.local.set({
-    lessonQueue,
-    lastQueueTopic
-  });
-
+  await chrome.storage.local.set({ lessonQueue, lastQueueTopic });
   console.log(`Lessons remaining in queue: ${lessonQueue.length}`);
 
-  return lesson;
+  if (lessonQueue.length < LESSON_QUEUE_REFILL_THRESHOLD) {
+    triggerQueueRefill(topic, apiKey);
+  }
+
+  return lesson || null;
+}
+
+async function trackPhaseCompletion(phase, phaseDuration) {
+  const data = await chrome.storage.local.get(['analytics']);
+  const a = data.analytics || { ...DEFAULT_ANALYTICS };
+
+  if (phase === 'work') {
+    a.completedWorkSessions = (a.completedWorkSessions || 0) + 1;
+    a.totalFocusMinutes = (a.totalFocusMinutes || 0) + phaseDuration;
+    const today = new Date().toISOString().split('T')[0];
+    const lastDate = a.lastStudyDate || '';
+    if (lastDate !== today) {
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      a.currentStreakDays = lastDate === yesterday ? (a.currentStreakDays || 0) + 1 : 1;
+      a.longestStreakDays = Math.max(a.currentStreakDays, a.longestStreakDays || 0);
+      a.lastStudyDate = today;
+    }
+  } else if (phase === 'break') {
+    a.completedBreaks = (a.completedBreaks || 0) + 1;
+    a.lessonsConsumed = (a.lessonsConsumed || 0) + 1;
+  }
+
+  await chrome.storage.local.set({ analytics: a });
 }
 
 // openrouter - fetches 5 lessons at once
@@ -316,25 +354,28 @@ Return valid JSON array with 5 lessons:
 // Fixed the closing brace closure right here
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'START_TIMER') {
-    chrome.alarms.create('pomodoroTick', { delayInMinutes: WORK_DURATION_MINS });
-    chrome.storage.local.set({
-      isRunning: true,
-      phase: 'work',
-      startTime: Date.now(),
-      breakLesson: null
+    chrome.storage.local.get(['timerSettings'], (data) => {
+      const settings = { ...DEFAULT_TIMER_SETTINGS, ...(data.timerSettings || {}) };
+      chrome.alarms.create('pomodoroTick', { delayInMinutes: settings.workDuration });
+      chrome.storage.local.set({
+        isRunning: true,
+        phase: 'work',
+        startTime: Date.now(),
+        currentBreakLesson: null
+      }, () => sendResponse({ ok: true }));
     });
-    sendResponse({ ok: true });
+    return true;
   } else if (msg.type === 'STOP_TIMER') {
     chrome.alarms.clear('pomodoroTick');
     chrome.storage.local.set({
       isRunning: false,
       phase: 'work',
       startTime: null,
-      breakLesson: null
-    });
-    sendResponse({ ok: true });
+      currentBreakLesson: null
+    }, () => sendResponse({ ok: true }));
+    return true;
   } else if (msg.type === 'CLEAR_LESSON_QUEUE') {
-    // Clear the lesson queue when topic changes
+    isQueueRefilling = false;
     chrome.storage.local.set({
       lessonQueue: [],
       lastQueueTopic: ''
@@ -343,35 +384,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.type === 'SKIP_PHASE') {
     chrome.alarms.clear('pomodoroTick');
     chrome.storage.local.get(null, async (data) => {
+      const settings = { ...DEFAULT_TIMER_SETTINGS, ...(data.timerSettings || {}) };
       if (data.phase === 'work') {
-        // Skip to learning phase
         const lesson = await fetchLesson(data.topic, data.apiKey);
-        await playSound('learning');
-        await chrome.storage.local.set({
-          phase: 'learning',
-          startTime: Date.now(),
-          breakLesson: lesson,
-          sessionCount: (data.sessionCount || 0) + 1
-        });
-        chrome.alarms.create('pomodoroTick', { delayInMinutes: LEARNING_DURATION_MINS });
-      } else if (data.phase === 'learning') {
-        // Skip to break phase
         await playSound('break');
+        await trackPhaseCompletion('work', settings.workDuration);
         await chrome.storage.local.set({
           phase: 'break',
-          startTime: Date.now()
-          // Keep the lesson
+          startTime: Date.now(),
+          currentBreakLesson: lesson,
+          sessionCount: (data.sessionCount || 0) + 1
         });
-        chrome.alarms.create('pomodoroTick', { delayInMinutes: BREAK_DURATION_MINS });
+        chrome.alarms.create('pomodoroTick', { delayInMinutes: settings.breakDuration });
       } else {
-        // Skip to work phase
         await playSound('work');
+        await trackPhaseCompletion('break', settings.breakDuration);
         await chrome.storage.local.set({
           phase: 'work',
           startTime: Date.now(),
-          breakLesson: null
+          currentBreakLesson: null
         });
-        chrome.alarms.create('pomodoroTick', { delayInMinutes: WORK_DURATION_MINS });
+        chrome.alarms.create('pomodoroTick', { delayInMinutes: settings.workDuration });
       }
       sendResponse({ ok: true });
     });

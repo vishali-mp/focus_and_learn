@@ -1,12 +1,7 @@
-// number of minutes
-// original
-const WORK_SECS = 25 * 60;
-const LEARNING_SECS = 2 * 60;
-const BREAK_SECS = 5 * 60;
-// testing modified
-// const WORK_SECS = 1 * 60;
-// const LEARNING_SECS = 1 * 60;
-// const BREAK_SECS = 1 * 60;
+const DEFAULT_TIMER_SETTINGS = {
+  workDuration: 25,
+  breakDuration: 5
+};
 
 let tickInterval = null;
 
@@ -14,6 +9,7 @@ function showMain() {
   document.getElementById('mainScreen').classList.add('active');
   document.getElementById('settingsScreen').classList.remove('active');
   document.getElementById('libraryScreen').classList.remove('active');
+  document.getElementById('analyticsScreen').classList.remove('active');
   refresh();
 }
 
@@ -42,12 +38,9 @@ function updateRing(ratio, phase) {
   const circ = 515.2;
   ring.style.strokeDashoffset = circ * (1 - ratio);
 
-  // Remove all phase classes
-  ring.classList.remove('break-phase', 'learning-phase');
+  ring.classList.remove('break-phase');
 
-  // Add appropriate class
   if (phase === 'break') ring.classList.add('break-phase');
-  else if (phase === 'learning') ring.classList.add('learning-phase');
 }
 
 
@@ -105,7 +98,7 @@ async function getSavedLessons() {
 
 async function toggleSaveLesson() {
   const data = await new Promise(r => chrome.storage.local.get(null, r));
-  const lesson = data.breakLesson;
+  const lesson = data.currentBreakLesson;
   if (!lesson) return;
 
   const saved = data.savedLessons || [];
@@ -143,13 +136,11 @@ async function renderLibrary() {
     });
   });
 
-  // Filter
   const filtered = saved.filter(s => {
     const matchTag = activeTag === '' || s.tag === activeTag;
     const matchQuery = !query ||
       s.title.toLowerCase().includes(query) ||
-      s.concept.toLowerCase().includes(query) ||
-      (s.note || '').toLowerCase().includes(query);
+      s.concept.toLowerCase().includes(query);
     return matchTag && matchQuery;
   });
 
@@ -177,62 +168,22 @@ async function renderLibrary() {
         </div>
         <div class="saved-concept">${s.concept}</div>
         ${s.detail ? `<div class="saved-concept" style="margin-top:4px;font-size:10px;color:#6a6865">${s.detail}</div>` : ''}
-        ${s.note ? `<div class="saved-note">${escHtml(s.note)}</div>` : ''}
-        <div class="note-input-wrap" id="noteWrap-${realIdx}">
-          <textarea class="note-textarea" id="noteText-${realIdx}" placeholder="Add your own note or reflection...">${escHtml(s.note || '')}</textarea>
-          <button class="note-save-btn" data-save-note="${realIdx}">Save note</button>
-        </div>
         <div class="saved-card-footer">
           <span class="saved-date">${date}</span>
-          <div class="saved-actions">
-          <button class="icon-btn" data-toggle-note="${realIdx}">✏️</button>
           <button class="icon-btn delete" data-delete="${realIdx}">🗑</button>
-          </div>
         </div>
       </div>`;
   }).join('');
 }
 
-// Save note buttons
-document.querySelectorAll('[data-save-note]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    saveNote(btn.dataset.saveNote);
-  });
-});
-
-// Toggle note buttons
-document.querySelectorAll('[data-toggle-note]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    toggleNoteInput(btn.dataset.toggleNote);
-  });
-});
-
-// Delete buttons
-document.querySelectorAll('[data-delete]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    deleteLesson(btn.dataset.delete);
-  });
-});
-
 function escHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function toggleNoteInput(idx) {
-  const wrap = document.getElementById(`noteWrap-${idx}`);
-  wrap.classList.toggle('open');
-  if (wrap.classList.contains('open')) {
-    document.getElementById(`noteText-${idx}`)?.focus();
-  }
-}
-
-async function saveNote(idx) {
-  const text = document.getElementById(`noteText-${idx}`)?.value.trim() || '';
-  const saved = await getSavedLessons();
-  if (!saved[idx]) return;
-  saved[idx].note = text;
-  chrome.storage.local.set({ savedLessons: saved }, () => renderLibrary());
-}
+document.getElementById('libList').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-delete]');
+  if (btn) deleteLesson(btn.dataset.delete);
+});
 
 async function deleteLesson(idx) {
   const saved = await getSavedLessons();
@@ -261,20 +212,32 @@ function renderNoKey() {
   `;
 }
 
-function renderIdle() {
+function renderSimpleBreak() {
+  const area = document.getElementById('lessonArea');
+  area.innerHTML = `
+    <div class="idle-prompt">
+      <div class="idle-icon">☕</div>
+      <div class="idle-title">Rest your mind</div>
+      <div class="idle-sub">Stretch, hydrate, or just breathe.<br>No lesson available this break.</div>
+    </div>
+  `;
+}
+
+function renderIdle(workDuration) {
   const area = document.getElementById('lessonArea');
   area.innerHTML = `
     <div class="idle-prompt">
       <div class="idle-icon">🍅</div>
       <div class="idle-title">Ready when you are</div>
-      <div class="idle-sub">Start a 25-min focus session.<br>You'll get a micro-lesson at every break.</div>
+      <div class="idle-sub">Start a ${workDuration}-min focus session.<br>You'll get a micro-lesson at every break.</div>
     </div>
   `;
 }
 
 async function refresh() {
   const data = await chrome.storage.local.get(null);
-  const { isRunning, phase, startTime, sessionCount, topic, apiKey, breakLesson } = data;
+  const { isRunning, phase, startTime, sessionCount, topic, apiKey, currentBreakLesson } = data;
+  const settings = { ...DEFAULT_TIMER_SETTINGS, ...(data.timerSettings || {}) };
 
   const badge = document.getElementById('phaseBadge');
   const phaseLabel = document.getElementById('phaseLabel');
@@ -284,24 +247,25 @@ async function refresh() {
   const skipBtn = document.getElementById('skipBtn');
 
   document.getElementById('sessionCount').textContent = sessionCount || 0;
-  document.getElementById('focusTime').textContent = `${(sessionCount || 0) * 25}m`;
+  document.getElementById('focusTime').textContent = `${(sessionCount || 0) * settings.workDuration}m`;
   document.getElementById('topicDisplay').textContent = topic
     ? topic.split(' ')[0]
     : '—';
 
   if (!isRunning) {
     clearInterval(tickInterval);
+    document.body.classList.remove('break-mode');
     badge.className = 'phase-badge work';
     phaseLabel.textContent = 'Ready';
-    timerDisplay.textContent = '25:00';
+    timerDisplay.textContent = `${String(settings.workDuration).padStart(2, '0')}:00`;
     timerSub.textContent = 'focus session';
     mainBtn.textContent = 'Start Focus';
     mainBtn.className = 'btn-primary';
-    mainBtn.title = 'Start a 25-minute focus session';
+    mainBtn.title = `Start a ${settings.workDuration}-minute focus session`;
     skipBtn.style.display = 'none';
     updateRing(1, 'work');
     if (!apiKey) renderNoKey();
-    else renderIdle();
+    else renderIdle(settings.workDuration);
     return;
   }
 
@@ -310,38 +274,32 @@ async function refresh() {
   mainBtn.className = 'btn-primary stop';
   mainBtn.title = 'Stop the current timer';
 
-  // Determine total seconds based on phase
   let totalSecs, phaseClass, phaseLabelText, timerSubText;
 
   if (phase === 'work') {
-    totalSecs = WORK_SECS;
+    totalSecs = settings.workDuration * 60;
     phaseClass = 'work';
     phaseLabelText = 'Focus mode';
-    timerSubText = 'until learning';
-  } else if (phase === 'learning') {
-    totalSecs = LEARNING_SECS;
-    phaseClass = 'learning';
-    phaseLabelText = 'Learning time';
     timerSubText = 'until break';
-  } else { // break
-    totalSecs = BREAK_SECS;
+  } else {
+    totalSecs = settings.breakDuration * 60;
     phaseClass = 'break';
     phaseLabelText = 'Break time';
     timerSubText = 'until next session';
   }
 
+  document.body.classList.toggle('break-mode', phase === 'break');
+
   badge.className = `phase-badge ${phaseClass}`;
   phaseLabel.textContent = phaseLabelText;
   timerSub.textContent = timerSubText;
 
-  // Show lesson during learning and break phases
-  if (phase === 'learning' || phase === 'break') {
-    if (breakLesson) await renderLesson(breakLesson);
-    else if (apiKey) renderLessonLoading();
-    else renderNoKey();
+  if (phase === 'break') {
+    if (currentBreakLesson) await renderLesson(currentBreakLesson);
+    else renderSimpleBreak();
   } else {
     if (!apiKey) renderNoKey();
-    else renderIdle();
+    else renderIdle(settings.workDuration);
   }
 
   // clearInterval(tickInterval);
@@ -393,12 +351,37 @@ function handleSkip() {
   });
 }
 
+// ── ANALYTICS ──
+function showAnalytics() {
+  document.getElementById('mainScreen').classList.remove('active');
+  document.getElementById('settingsScreen').classList.remove('active');
+  document.getElementById('libraryScreen').classList.remove('active');
+  document.getElementById('analyticsScreen').classList.add('active');
+  renderAnalytics();
+}
+
+async function renderAnalytics() {
+  const data = await new Promise(r => chrome.storage.local.get(['analytics'], r));
+  const a = data.analytics || {};
+
+  const focusMin = a.totalFocusMinutes || 0;
+  const focusH = Math.floor(focusMin / 60);
+  const focusM = focusMin % 60;
+  document.getElementById('analyticsFocusTime').textContent =
+    focusH > 0 ? `${focusH}h ${focusM}m` : `${focusM}m`;
+
+  document.getElementById('analyticsWorkSessions').textContent = a.completedWorkSessions || 0;
+  document.getElementById('analyticsBreaks').textContent = a.completedBreaks || 0;
+  document.getElementById('analyticsLessons').textContent = a.lessonsConsumed || 0;
+  document.getElementById('analyticsAppOpens').textContent = a.appLaunchCount || 0;
+
+  document.getElementById('analyticsStreak').textContent = (a.currentStreakDays || 0) + ' day' + ((a.currentStreakDays || 0) !== 1 ? 's' : '');
+  document.getElementById('analyticsLongestStreak').textContent = (a.longestStreakDays || 0) + ' day' + ((a.longestStreakDays || 0) !== 1 ? 's' : '');
+}
+
 // ── SETTINGS ──
 function loadSettingsUI() {
-  
- 
-
-  chrome.storage.local.get(['apiKey', 'topic'], (data) => {
+  chrome.storage.local.get(['apiKey', 'topic', 'timerSettings'], (data) => {
     document.getElementById('apiKeyInput').value = data.apiKey || '';
     const savedTopic = data.topic || '';
     const chips = document.querySelectorAll('#topicChips .chip');
@@ -418,6 +401,10 @@ function loadSettingsUI() {
     if (!matched && savedTopic) {
       document.getElementById('customTopic').value = savedTopic;
     }
+
+    const ts = { ...DEFAULT_TIMER_SETTINGS, ...(data.timerSettings || {}) };
+    document.getElementById('workDurationInput').value = ts.workDuration;
+    document.getElementById('breakDurationInput').value = ts.breakDuration;
   });
 
   document.querySelectorAll('#topicChips .chip').forEach(chip => {
@@ -435,12 +422,32 @@ function saveSettings() {
   const activeChip = document.querySelector('#topicChips .chip.active');
   const topic = customTopic || (activeChip ? activeChip.dataset.topic : '');
 
-  // Get current topic to check if it changed
+  const workDuration = parseInt(document.getElementById('workDurationInput').value, 10);
+  const breakDuration = parseInt(document.getElementById('breakDurationInput').value, 10);
+
+  const errors = [];
+  if (isNaN(workDuration) || workDuration < 1 || workDuration > 180) errors.push('Work: 1–180 minutes');
+  if (isNaN(breakDuration) || breakDuration < 1 || breakDuration > 60) errors.push('Break: 1–60 minutes');
+
+  if (errors.length > 0) {
+    const btn = document.querySelector('.save-btn');
+    btn.textContent = errors.join(' · ');
+    btn.style.background = '#ff5f5f';
+    btn.style.color = '#fff';
+    setTimeout(() => {
+      btn.textContent = 'Save settings';
+      btn.style.background = '';
+      btn.style.color = '';
+    }, 3000);
+    return;
+  }
+
+  const timerSettings = { workDuration, breakDuration };
+
   chrome.storage.local.get(['topic'], (data) => {
     const topicChanged = data.topic !== topic;
 
-    chrome.storage.local.set({ apiKey, topic }, () => {
-      // If topic changed, clear the lesson queue
+    chrome.storage.local.set({ apiKey, topic, timerSettings }, () => {
       if (topicChanged) {
         chrome.runtime.sendMessage({ type: 'CLEAR_LESSON_QUEUE' });
       }
@@ -448,6 +455,7 @@ function saveSettings() {
       const btn = document.querySelector('.save-btn');
       btn.textContent = 'Saved ✓';
       btn.style.background = '#a8e83d';
+      btn.style.color = '';
       setTimeout(() => {
         btn.textContent = 'Save settings';
         btn.style.background = '';
@@ -468,6 +476,10 @@ document.addEventListener('DOMContentLoaded', () => {
     .addEventListener('click', showSettings);
 
   document
+    .getElementById('analyticsBtn')
+    .addEventListener('click', showAnalytics);
+
+  document
     .getElementById('mainBtn')
     .addEventListener('click', handleMainBtn);
 
@@ -484,6 +496,10 @@ document.addEventListener('DOMContentLoaded', () => {
     .addEventListener('click', showMain);
 
   document
+    .getElementById('backBtn3')
+    .addEventListener('click', showMain);
+
+  document
     .getElementById('saveSettingsBtn')
     .addEventListener('click', saveSettings);
   
@@ -491,6 +507,11 @@ document.addEventListener('DOMContentLoaded', () => {
     .getElementById('libSearch')
     .addEventListener('input', renderLibrary);
 
+  chrome.storage.local.get(['analytics'], (data) => {
+    const a = data.analytics || {};
+    a.appLaunchCount = (a.appLaunchCount || 0) + 1;
+    chrome.storage.local.set({ analytics: a });
+  });
 
   refresh();
 });

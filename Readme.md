@@ -1,4 +1,4 @@
-# Focus & Learn — Pomodoro Brain Booster 🍅🧠
+# Focus & Learn - Pomodoro Brain Booster 🍅🧠
 
 A minimalist, high-utility Chrome Extension built using **Manifest V3**. It combines the proven **Pomodoro Technique** with instant, AI-powered micro-lessons generated on the fly. Instead of mindlessly scrolling during your focus breaks, you get a bite-sized learning moment tailored to your interests.
 
@@ -14,7 +14,7 @@ Built with a dark, modern aesthetic utilizing custom synthesized audio feedback 
     * *Learning Time:* An enlightening ascending chime to signal your micro-lesson.
     * *Break Time:* A relaxing, double ambient bell chime.
     * *Focus Time:* A crisp, grounding triple-beep to get your head back in the game.
-* **Personalized Learning Topics:** Choose from preset categories (Engineering, Data/ML, Psychology, Startups) or type your own custom focus topic.
+* **Personalized Learning Topics:** Choose from preset categories (Engineering, Data/ML, Psychology) or type your own custom focus topic.
 * **Local Library & Storage:** Save your favorite lessons, tag them, search through your repository, and add your own reflections or notes.
 
 ---
