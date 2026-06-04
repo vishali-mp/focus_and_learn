@@ -1,64 +1,76 @@
-# Focus & Learn - Pomodoro Brain Booster 🍅🧠
+# Focus & Learn - Pomodoro Brain Booster
 
-A minimalist, high-utility Chrome Extension built using **Manifest V3**. It combines the proven **Pomodoro Technique** with instant, AI-powered micro-lessons generated on the fly. Instead of mindlessly scrolling during your focus breaks, you get a bite-sized learning moment tailored to your interests.
-
-Built with a dark, modern aesthetic utilizing custom synthesized audio feedback for seamless context switching.
+A minimalist Chrome Extension built with **Manifest V3** that combines the **Pomodoro Technique** with AI-powered micro-lessons. During every break, instead of mindlessly scrolling, you get a bite-sized learning moment.
 
 ---
 
-## 🚀 Features
+## Features
 
-* **3-Phase Pomodoro Cycle:** Complete workflow with Focus (25 min) → Learning (2 min) → Break (5 min) phases, each with distinct visual and audio cues.
-* **AI Micro-Lessons with Smart Queueing:** Leverages Google's **Gemini 3.1 Flash Lite** via AI Studio to deliver hyper-focused, concise concepts during your 2-minute learning sessions. Batches 5 lessons per API call and queues them for efficiency—only refetches when the queue is empty or topic changes.
-* **Custom Synthesized Audio:** Bypasses browser autoplay restrictions using the Web Audio API to create unique sound signatures:
-    * *Learning Time:* An enlightening ascending chime to signal your micro-lesson.
-    * *Break Time:* A relaxing, double ambient bell chime.
-    * *Focus Time:* A crisp, grounding triple-beep to get your head back in the game.
-* **Personalized Learning Topics:** Choose from preset categories (Engineering, Data/ML, Psychology) or type your own custom focus topic.
-* **Local Library & Storage:** Save your favorite lessons, tag them, search through your repository, and add your own reflections or notes.
-
----
-
-## 🛠️ Architecture & Tech Stack
-
-* **Manifest V3** Chrome Extension architecture.
-* **Service Workers (`background.js`):** Handles alarms, storage state-management, notifications, and edge-case execution.
-* **Offscreen Document API:** Safely processes background Web Audio context synthesis without impacting browser performance.
-* **Frontend UI:** Vanilla JavaScript, HTML5, and CSS variables featuring a premium custom circular SVG timer interface.
+- **2-Phase Pomodoro Cycle:** Focus → Break → repeat. Configurable durations (work: 1–180 min, break: 1–60 min).
+- **AI Micro-Lessons:** Uses **Gemini 3.1 Flash Lite** via Google AI Studio. Batches 5 lessons per API call and queues them—refetches automatically when the queue is low or topic changes. Also supports OpenRouter as an alternative provider.
+- **Custom Synthesized Audio:** Web Audio API generates unique chimes (no audio files to bundle). An ascending bell signals break time; sharp triple-beep signals focus time. Played through an offscreen document to comply with Chrome autoplay policies.
+- **Personalized Topics:** Choose from presets (Engineering, Product, Data/ML, Psychology, History, Finance, Science) or type a custom focus topic.
+- **Saved Lessons Library:** Save lessons with one click, search by title/concept, filter by tag, and delete individual entries. All persisted in `chrome.storage.local`.
+- **Analytics Dashboard:** Tracks total focus time, completed sessions, breaks taken, lessons consumed, app opens, current streak, and longest streak.
+- **Dark, Modern UI:** Fixed 360x600px popup with SVG circular timer, animated phase badge, and responsive break-mode layout that highlights the lesson card.
 
 ---
 
-## 📥 Installation & Setup
+## Architecture & Tech Stack
+
+- **Manifest V3** Chrome Extension
+- **Service Worker (`background.js`):** Handles alarms, storage state management, Gemini API calls, notifications, and audio orchestration.
+- **Offscreen Document (`offscreen.html` + `offscreen.js`):** Safely processes Web Audio synthesis without impacting browser performance.
+- **Frontend UI:** Vanilla JavaScript, HTML5, and CSS custom properties featuring a circular SVG timer and dark theme (`--bg: #0e0e0f`, accent `#c8f53d`).
+
+---
+
+## Permissions
+
+| Permission | Purpose |
+|---|---|
+| `alarms` | Pomodoro timer countdown |
+| `notifications` | Break/focus transition alerts |
+| `storage` | Persistent state, settings, analytics, saved lessons |
+| `offscreen` | Audio playback via offscreen document API |
+| `https://generativelanguage.googleapis.com/*` | Gemini API requests |
+
+---
+
+## Installation & Setup
 
 ### 1. Clone the Repository
-```bash
-git clone [https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git](https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git) ```
 
+```bash
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
 cd YOUR_REPO_NAME
+```
 
 ### 2. Load the Extension into Chrome
-Open Google Chrome and navigate to chrome://extensions/.
 
-Enable Developer mode using the toggle switch in the top-right corner.
-
-Click the Load unpacked button in the top-left corner.
-
-Select the pomodoro-extension folder containing the manifest.json file.
+1. Open Chrome and navigate to `chrome://extensions/`
+2. Enable **Developer mode** (top-right toggle)
+3. Click **Load unpacked** (top-left)
+4. Select the `pomodoro-extension` folder
 
 ### 3. Connect the Gemini API
-Head over to Google AI Studio and grab a free API key.
 
-Click the ⚙️ icon in the extension popup.
+1. Get a free API key from [Google AI Studio](https://aistudio.google.com/)
+2. Click the ⚙️ icon in the extension popup
+3. Paste your key into the **Gemini API Key** field and save
 
-Paste your key into the Gemini API Key field and save.
+---
 
-📂 File Structure
+## File Structure
 
+```
 pomodoro-extension/
-├── manifest.json       # Extension configurations, permissions, and service worker routing
-├── popup.html          # Main UI view layout (Timer, Library, Settings)
-├── popup.js            # Main screen interactions, DOM rendering, and storage sync listeners
-├── background.js       # Core backend engine, Chrome alarm managers, and Gemini API requests
-├── offscreen.html      # Invisible DOM hook for background audio execution
-├── offscreen.js        # Web Audio API synth chime engines
-└── icons/              # Extension logo assets
+├── manifest.json        # Extension config, permissions, service worker
+├── popup.html           # Main UI (timer, settings, library, analytics)
+├── popup.js             # Popup interactions, DOM rendering, storage sync
+├── background.js        # Service worker: alarms, API calls, audio orchestration
+├── offscreen.html       # Invisible DOM hook for audio execution
+├── offscreen.js         # Web Audio API synthesized chimes
+├── icons/               # 16x16, 48x48, 128x128 icons
+└── screenshots/         # Chrome Web Store listing screenshots
+```
